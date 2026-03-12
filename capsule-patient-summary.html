@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capsule — Shared Patient Summary</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1a1a;
+    --ink-mid: #4a4a4a;
+    --ink-light: #8a8a8a;
+    --paper: #f8f5f0;
+    --paper-warm: #f0ebe2;
+    --paper-dark: #e8e1d6;
+    --rule: #d4cdc3;
+    --accent-gp: #2d6a4f;
+    --accent-physio: #1b4f72;
+    --accent-dietitian: #6b4226;
+    --accent-psych: #4a235a;
+    --accent-admin: #5d4037;
+    --flag-warn: #c0392b;
+    --flag-caution: #d4890a;
+    --flag-info: #2471a3;
+    --green-soft: #d4edda;
+    --blue-soft: #d0e8f5;
+    --amber-soft: #fef3cd;
+    --red-soft: #fde8e8;
+    --purple-soft: #ede0f5;
+    --redacted: #1a1a1a;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── LAYOUT ── */
+  .shell { display: grid; grid-template-rows: auto 1fr; min-height: 100vh; }
+
+  .topbar {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    height: 52px;
+    border-bottom: 1px solid #333;
+  }
+  .topbar-logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+    color: var(--paper);
+  }
+  .topbar-logo span { color: #7ecba1; }
+  .topbar-sep { width: 1px; height: 24px; background: #444; }
+  .topbar-patient { font-size: 13px; color: #aaa; }
+  .topbar-patient strong { color: var(--paper); font-weight: 500; }
+  .topbar-spacer { flex: 1; }
+
+  .role-switcher {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #aaa;
+  }
+  .role-switcher label { color: #888; white-space: nowrap; }
+  .role-select {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: var(--paper);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .main-layout { display: grid; grid-template-columns: 260px 1fr 280px; gap: 0; }
+
+  /* ── LEFT SIDEBAR ── */
+  .sidebar-left {
+    border-right: 1px solid var(--rule);
+    padding: 24px 0;
+    background: var(--paper-warm);
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 52px);
+    overflow-y: auto;
+  }
+  .sidebar-section { padding: 0 20px 20px; }
+  .sidebar-section + .sidebar-section { border-top: 1px solid var(--rule); padding-top: 20px; }
+  .sidebar-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-light);
+    margin-bottom: 12px;
+  }
+
+  .patient-card { }
+  .patient-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .patient-meta { font-size: 12px; color: var(--ink-mid); }
+  .patient-meta span { margin-right: 8px; }
+
+  .alert-badges { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    border-left: 3px solid;
+  }
+  .badge-red { background: var(--red-soft); border-color: var(--flag-warn); color: var(--flag-warn); }
+  .badge-amber { background: var(--amber-soft); border-color: var(--flag-caution); color: #8a5500; }
+  .badge-info { background: var(--blue-soft); border-color: var(--flag-info); color: #1a4d72; }
+  .badge-icon { font-size: 14px; }
+
+  .nav-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .nav-item {
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--ink-mid);
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-item:hover { background: var(--paper-dark); color: var(--ink); }
+  .nav-item.active { background: var(--ink); color: var(--paper); font-weight: 500; }
+  .nav-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── CENTRE CONTENT ── */
+  .centre {
+    padding: 28px 32px;
+    overflow-y: auto;
+    height: calc(100vh - 52px);
+  }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1.5px solid var(--rule);
+  }
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    line-height: 1;
+  }
+  .section-subtitle { font-size: 13px; color: var(--ink-light); }
+
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .summary-grid.single { grid-template-columns: 1fr; }
+
+  .card {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .card-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-light);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-label .who-updated {
+    font-size: 10px;
+    color: var(--ink-light);
+    font-weight: 400;
+  }
+  .card-value { font-size: 14px; color: var(--ink); line-height: 1.6; }
+  .card-value.large { font-size: 24px; font-weight: 500; font-family: 'DM Mono', monospace; }
+
+  .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    background: var(--paper-dark);
+    color: var(--ink-mid);
+    border: 1px solid var(--rule);
+  }
+  .tag.active { background: var(--green-soft); border-color: #a8d5b8; color: #1e5e37; }
+  .tag.caution { background: var(--amber-soft); border-color: #f0c060; color: #7a4a00; }
+  .tag.flag { background: var(--red-soft); border-color: #f5b0b0; color: #8a1a1a; }
+
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 80px 1px 1fr;
+    gap: 0 16px;
+    padding-bottom: 18px;
+  }
+  .timeline-item:last-child .timeline-line { display: none; }
+  .timeline-date { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ink-light); padding-top: 2px; text-align: right; }
+  .timeline-line-wrap { display: flex; flex-direction: column; align-items: center; }
+  .timeline-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rule); border: 2px solid white; margin-top: 4px; flex-shrink: 0; }
+  .timeline-line { flex: 1; width: 1px; background: var(--rule); margin-top: 4px; }
+  .timeline-content { }
+  .timeline-who { font-size: 11px; color: var(--ink-light); margin-bottom: 2px; }
+  .timeline-text { font-size: 13px; color: var(--ink); line-height: 1.5; }
+  .timeline-dot.gp { background: var(--accent-gp); }
+  .timeline-dot.physio { background: var(--accent-physio); }
+  .timeline-dot.dietitian { background: var(--accent-dietitian); }
+  .timeline-dot.psych { background: var(--accent-psych); }
+
+  /* ── REDACTION ── */
+  .redacted {
+    background: var(--redacted);
+    color: transparent;
+    border-radius: 3px;
+    padding: 0 4px;
+    user-select: none;
+    cursor: not-allowed;
+    position: relative;
+    display: inline-block;
+  }
+  .redacted::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #222;
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    display: none;
+    z-index: 10;
+  }
+  .redacted:hover::after { display: block; }
+  .redacted-block {
+    background: #1a1a1a;
+    border-radius: 5px;
+    padding: 12px 16px;
+    color: transparent;
+    user-select: none;
+    position: relative;
+    overflow: hidden;
+  }
+  .redacted-block::before {
+    content: '🔒 Restricted — not visible to your role';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+  }
+  .redacted-block.soft {
+    background: var(--paper-dark);
+    border: 1px dashed var(--rule);
+  }
+  .redacted-block.soft::before { content: '— Not shared with this role —'; color: var(--ink-light); }
+
+  /* ── SENSITIVITY INDICATOR ── */
+  .sensitivity-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--amber-soft);
+    border: 1px solid #f0c060;
+    border-radius: 5px;
+    font-size: 12px;
+    color: #7a4a00;
+    margin-bottom: 16px;
+  }
+
+  /* ── RIGHT PANEL ── */
+  .sidebar-right {
+    border-left: 1px solid var(--rule);
+    background: var(--paper-warm);
+    padding: 24px 20px;
+    height: calc(100vh - 52px);
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+  }
+  .right-section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-light);
+    margin-bottom: 12px;
+  }
+  .right-section { margin-bottom: 24px; }
+  .right-section + .right-section { border-top: 1px solid var(--rule); padding-top: 20px; }
+
+  .provider-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: white;
+    border: 1px solid var(--rule);
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .provider-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600;
+    color: white;
+    flex-shrink: 0;
+  }
+  .provider-info { flex: 1; }
+  .provider-name { font-weight: 500; color: var(--ink); }
+  .provider-role { color: var(--ink-light); font-size: 11px; }
+  .provider-last { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink-light); }
+
+  .permission-matrix { font-size: 12px; }
+  .perm-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--rule); }
+  .perm-row:last-child { border: none; }
+  .perm-field { flex: 1; color: var(--ink-mid); }
+  .perm-check { font-size: 13px; }
+  .perm-yes { color: #2d6a4f; }
+  .perm-no { color: #ccc; }
+  .perm-partial { color: #d4890a; }
+
+  .data-model-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-model-table th { background: var(--ink); color: var(--paper); padding: 8px 12px; text-align: left; font-weight: 500; font-family: 'DM Mono', monospace; font-size: 11px; }
+  .data-model-table td { padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  .data-model-table tr:hover td { background: white; }
+  .data-model-table .included { color: #2d6a4f; font-weight: 500; }
+  .data-model-table .excluded { color: var(--flag-warn); }
+  .data-model-table .conditional { color: var(--flag-caution); }
+
+  .arch-section { margin-bottom: 32px; }
+  .arch-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 8px; }
+  .arch-body { font-size: 13px; color: var(--ink-mid); line-height: 1.7; }
+  .arch-body p { margin-bottom: 10px; }
+  .arch-body strong { color: var(--ink); font-weight: 500; }
+
+  .principle-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+  .principle-item { display: flex; gap: 12px; align-items: flex-start; }
+  .principle-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    background: var(--ink);
+    color: var(--paper);
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .principle-text { font-size: 13px; color: var(--ink-mid); line-height: 1.6; }
+
+  .cya-box {
+    background: white;
+    border: 1.5px solid var(--rule);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 16px;
+  }
+  .cya-box h4 { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 12px; }
+  .cya-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+  .cya-col { }
+  .cya-col-title { font-size: 11px; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+  .cya-col.bad .cya-col-title { color: var(--flag-warn); }
+  .cya-col.good .cya-col-title { color: var(--accent-gp); }
+  .cya-example { font-size: 12px; line-height: 1.6; color: var(--ink-mid); font-style: italic; background: var(--paper-warm); padding: 10px 12px; border-radius: 5px; border-left: 3px solid; }
+  .cya-col.bad .cya-example { border-color: var(--flag-warn); }
+  .cya-col.good .cya-example { border-color: var(--accent-gp); }
+
+  .role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .role-badge.gp { background: #d4ede4; color: var(--accent-gp); }
+  .role-badge.physio { background: var(--blue-soft); color: var(--accent-physio); }
+  .role-badge.dietitian { background: #ede0d4; color: var(--accent-dietitian); }
+  .role-badge.psych { background: var(--purple-soft); color: var(--accent-psych); }
+  .role-badge.admin { background: var(--paper-dark); color: var(--accent-admin); }
+
+  .viewing-as {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-size: 13px;
+  }
+
+  /* ── INTRO SCREEN ── */
+  .intro-overlay {
+    position: fixed;
+    inset: 0;
+    background: #1a1a1a;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    transition: opacity 0.4s ease;
+  }
+  .intro-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .intro-inner {
+    max-width: 680px;
+    width: 100%;
+  }
+
+  .intro-logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 28px;
+    margin-bottom: 6px;
+    color: #f8f5f0;
+  }
+  .intro-logo span { color: #7ecba1; }
+
+  .intro-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #555;
+    margin-bottom: 28px;
+  }
+
+  .intro-headline {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px;
+    line-height: 1.2;
+    color: #f8f5f0;
+    margin-bottom: 10px;
+  }
+  .intro-headline em { color: #7ecba1; font-style: normal; }
+
+  .intro-sub {
+    font-size: 15px;
+    color: #888;
+    line-height: 1.7;
+    margin-bottom: 28px;
+    max-width: 560px;
+  }
+
+  .intro-divider {
+    border: none;
+    border-top: 1px solid #2a2a2a;
+    margin: 24px 0;
+  }
+
+  .intro-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+
+  .intro-card {
+    background: #222;
+    border: 1px solid #2e2e2e;
+    border-radius: 7px;
+    padding: 14px 16px;
+  }
+  .intro-card-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #555;
+    margin-bottom: 6px;
+  }
+  .intro-card-value {
+    font-size: 13px;
+    color: #bbb;
+    line-height: 1.5;
+  }
+  .intro-card-value strong { color: #f8f5f0; font-weight: 500; }
+
+  .intro-how {
+    margin-bottom: 28px;
+  }
+  .intro-how-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #555;
+    margin-bottom: 12px;
+  }
+  .intro-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .intro-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 13px;
+    color: #999;
+    line-height: 1.5;
+  }
+  .intro-step-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    background: #2a2a2a;
+    color: #666;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .intro-step strong { color: #ddd; font-weight: 500; }
+
+  .intro-enter-btn {
+    background: #f8f5f0;
+    color: #1a1a1a;
+    border: none;
+    padding: 14px 32px;
+    border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.01em;
+  }
+  .intro-enter-btn:hover { background: #7ecba1; color: #1a1a1a; }
+
+  .intro-byline {
+    margin-top: 16px;
+    font-size: 11px;
+    color: #444;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-light); }
+
+  /* animations */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .view.active { animation: fadeIn 0.18s ease; }
+
+  .flag-note {
+    padding: 10px 14px;
+    border-radius: 5px;
+    font-size: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+  .flag-note.warn { background: var(--red-soft); border-left: 3px solid var(--flag-warn); color: #6a1010; }
+  .flag-note.caution { background: var(--amber-soft); border-left: 3px solid var(--flag-caution); color: #6a3a00; }
+  .flag-note.info { background: var(--blue-soft); border-left: 3px solid var(--flag-info); color: #0a3050; }
+
+  .divider { border: none; border-top: 1px solid var(--rule); margin: 20px 0; }
+
+  .medications-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .medications-table th { text-align: left; padding: 6px 12px; font-family: 'DM Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-light); border-bottom: 1.5px solid var(--rule); }
+  .medications-table td { padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  .medications-table tr:last-child td { border-bottom: none; }
+  .med-name { font-weight: 500; }
+  .med-dose { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink-mid); }
+
+  .watermark-note {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-light);
+    text-align: center;
+    padding: 16px;
+    border-top: 1px solid var(--rule);
+    margin-top: 32px;
+    letter-spacing: 0.05em;
+  }
+
+  /* responsive tweak */
+  @media (max-width: 1100px) {
+    .main-layout { grid-template-columns: 220px 1fr; }
+    .sidebar-right { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- INTRO SCREEN -->
+<div class="intro-overlay" id="introOverlay">
+  <div class="intro-inner">
+    <div class="intro-logo">cap<span>●</span>sule</div>
+    <div class="intro-tag">Capsule MedTech · Product Programme · Project 3</div>
+    <div class="intro-headline">Shared Patient Summary<br/><em>Without Creating Liability</em></div>
+    <p class="intro-sub">A working prototype and information architecture for a shared clinical record that is genuinely useful, clinically safe, and legally survivable — designed from a compliance-first perspective.</p>
+
+    <div class="intro-grid">
+      <div class="intro-card">
+        <div class="intro-card-label">The problem</div>
+        <div class="intro-card-value">Multidisciplinary clinics share patients but not context — causing <strong>conflicting advice, missed flags, and patients as the information bridge.</strong></div>
+      </div>
+      <div class="intro-card">
+        <div class="intro-card-label">The risk</div>
+        <div class="intro-card-value">Shared records create <strong>defensive documentation, liability exposure,</strong> and sensitive information leakage — often making care worse.</div>
+      </div>
+      <div class="intro-card">
+        <div class="intro-card-label">The approach</div>
+        <div class="intro-card-value"><strong>Three-tier permission model.</strong> Clinicians author directly to shared fields — nothing auto-extracted from private notes.</div>
+      </div>
+      <div class="intro-card">
+        <div class="intro-card-label">Background</div>
+        <div class="intro-card-value">Built by a <strong>compliance professional</strong> — treating governance, liability, and information architecture as the product design problem, not an afterthought.</div>
+      </div>
+    </div>
+
+    <div class="intro-how">
+      <div class="intro-how-label">How to use this prototype</div>
+      <div class="intro-steps">
+        <div class="intro-step"><div class="intro-step-num">1</div><span><strong>Use the role switcher</strong> (top right) to change perspective — GP, Physio, Dietitian, Psychologist, or Admin. The summary transforms in real-time.</span></div>
+        <div class="intro-step"><div class="intro-step-num">2</div><span><strong>Navigate the seven sections</strong> in the left sidebar — Overview, Medications, Conditions, Timeline, Permission Model, Data Architecture, and Anti-CYA Design.</span></div>
+        <div class="intro-step"><div class="intro-step-num">3</div><span><strong>Watch what redacts.</strong> Psychology content, sensitive social history, and prescribing details each have different visibility rules by role.</span></div>
+      </div>
+    </div>
+
+    <button class="intro-enter-btn" onclick="enterPrototype()">Open Prototype →</button>
+    <div class="intro-byline">Capsule MedTech Product Programme · March 2026 · Interactive prototype</div>
+  </div>
+</div>
+
+<div class="shell">
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="topbar-logo">cap<span>●</span>sule</div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-patient">Shared Summary — <strong>Marcus Webb, 42</strong> &nbsp;·&nbsp; MRN 00447-C</div>
+  <div class="topbar-spacer"></div>
+  <div class="role-switcher">
+    <label>Viewing as:</label>
+    <select class="role-select" id="roleSelect" onchange="switchRole(this.value)">
+      <option value="gp">Dr. Singh — General Practitioner</option>
+      <option value="physio">J. Okoro — Physiotherapist</option>
+      <option value="dietitian">K. Laurent — Dietitian</option>
+      <option value="psych">Dr. Mehta — Psychologist</option>
+      <option value="admin">Admin Staff</option>
+    </select>
+  </div>
+</header>
+
+<div class="main-layout">
+
+<!-- LEFT SIDEBAR -->
+<nav class="sidebar-left">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Patient</div>
+    <div class="patient-card">
+      <div class="patient-name">Marcus Webb</div>
+      <div class="patient-meta">
+        <span>42 yrs</span>
+        <span>M</span>
+        <span>DOB 14 Mar 1983</span>
+      </div>
+      <div class="alert-badges" style="margin-top: 12px;">
+        <div class="badge badge-red"><span class="badge-icon">⚠</span> Penicillin allergy</div>
+        <div class="badge badge-amber"><span class="badge-icon">◐</span> Chronic pain — opioid caution</div>
+        <div id="psych-badge-nav" class="badge badge-info" style="display:none;"><span class="badge-icon">○</span> Mental health active</div>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Summary Views</div>
+    <ul class="nav-list">
+      <li class="nav-item active" onclick="showView('overview', this)">
+        <span class="nav-dot" style="background:#aaa;"></span> Overview
+      </li>
+      <li class="nav-item" onclick="showView('medications', this)">
+        <span class="nav-dot" style="background:#c06030;"></span> Medications
+      </li>
+      <li class="nav-item" onclick="showView('conditions', this)">
+        <span class="nav-dot" style="background:#2d6a4f;"></span> Active Conditions
+      </li>
+      <li class="nav-item" onclick="showView('visits', this)">
+        <span class="nav-dot" style="background:#1b4f72;"></span> Visit Timeline
+      </li>
+      <li class="nav-item" onclick="showView('permissions', this)">
+        <span class="nav-dot" style="background:#4a235a;"></span> Permission Model
+      </li>
+      <li class="nav-item" onclick="showView('datamodel', this)">
+        <span class="nav-dot" style="background:#888;"></span> Data Architecture
+      </li>
+      <li class="nav-item" onclick="showView('cya', this)">
+        <span class="nav-dot" style="background:#c0392b;"></span> Anti-CYA Design
+      </li>
+    </ul>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Care Team</div>
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px; padding: 4px 0;">
+        <div class="nav-dot" style="background:var(--accent-gp); width:9px; height:9px;"></div>
+        <span>Dr. Singh · GP</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px; padding: 4px 0;">
+        <div class="nav-dot" style="background:var(--accent-physio); width:9px; height:9px;"></div>
+        <span>J. Okoro · Physio</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px; padding: 4px 0;">
+        <div class="nav-dot" style="background:var(--accent-dietitian); width:9px; height:9px;"></div>
+        <span>K. Laurent · Dietitian</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px; padding: 4px 0;">
+        <div class="nav-dot" style="background:var(--accent-psych); width:9px; height:9px;"></div>
+        <span>Dr. Mehta · Psychologist</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- CENTRE PANEL -->
+<main class="centre">
+
+  <!-- ── OVERVIEW ── -->
+  <div class="view active" id="view-overview">
+    <div class="section-header">
+      <div class="section-title">Patient Overview</div>
+      <div class="section-subtitle" id="viewing-role-label">Viewing as: General Practitioner</div>
+    </div>
+
+    <div id="role-viewing-badge" class="viewing-as">
+      <span id="role-badge-display" class="role-badge gp">GP</span>
+      <span id="role-context-text" style="font-size:12px; color:var(--ink-mid);">You see all shared fields. Psychological session content is summarised, not transcribed.</span>
+    </div>
+
+    <div id="sensitivity-bar-gp" class="sensitivity-bar">
+      ⚑ &nbsp;<strong>Sensitive flag visible to your role:</strong> Patient has disclosed history of substance use (managed, in remission). Shared for clinical safety. Not in admin view.
+    </div>
+    <div id="sensitivity-bar-admin" class="sensitivity-bar" style="display:none; background: #e8e1d6; border-color: var(--rule); color: var(--ink-mid);">
+      ○ &nbsp;You are viewing administrative fields only. Clinical details are restricted.
+    </div>
+
+    <!-- Core grid -->
+    <div class="summary-grid">
+      <div class="card">
+        <div class="card-label">Presenting concerns <span class="who-updated">Updated: Dr. Singh · 3 days ago</span></div>
+        <div class="card-value">
+          <div class="tag-list">
+            <span class="tag active">Chronic low back pain</span>
+            <span class="tag active">Fatigue</span>
+            <span class="tag caution">Weight management</span>
+            <span class="tag active">Hypertension</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Safety flags — ALL roles</div>
+        <div class="card-value">
+          <div class="flag-note warn">⚠ &nbsp;<span><strong>Allergy:</strong> Penicillin — anaphylaxis (confirmed). No cephalosporins without specialist review.</span></div>
+          <div class="flag-note caution">◐ &nbsp;<span><strong>Opioid caution:</strong> History of dependence (managed). Flag any new opioid prescriptions to Dr. Singh.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="card">
+        <div class="card-label">Functional status <span class="who-updated">J. Okoro · 5 days ago</span></div>
+        <div class="card-value">Mobilising independently. Back pain limits sitting >30 min. Avoiding stairs where possible. Exercise tolerance: low-moderate.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Nutrition status <span class="who-updated">K. Laurent · 8 days ago</span></div>
+        <div id="nutrition-card">
+          <div class="card-value">BMI 31.4. Irregular meal timing, high processed food intake. Iron borderline low. No active eating disorder. Fluid intake adequate.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="card" id="mental-health-card">
+        <div class="card-label">Mental health context <span class="who-updated">Dr. Mehta · 12 days ago</span></div>
+        <div id="mh-gp-view">
+          <div class="card-value">
+            <div class="flag-note info">ℹ &nbsp;Patient is in active psychological care with Dr. Mehta. Relevant clinical flags are shared below — session content is not.</div>
+            <div style="margin-top: 10px;">
+              <strong>Shared flags:</strong><br>
+              <div class="tag-list" style="margin-top: 6px;">
+                <span class="tag caution">Chronic pain–mood interaction</span>
+                <span class="tag caution">Avoidance behaviours</span>
+                <span class="tag active">Engaged in treatment</span>
+              </div>
+            </div>
+            <div style="margin-top: 12px; font-size: 12px; color: var(--ink-mid);">Sleep: disrupted (pain-related). No current risk concerns.</div>
+          </div>
+        </div>
+        <div id="mh-admin-view" style="display:none;">
+          <div class="redacted-block soft"></div>
+        </div>
+        <div id="mh-psych-view" style="display:none;">
+          <div class="card-value">
+            <div class="flag-note info">ℹ &nbsp;You are the treating psychologist. Full session notes are in your private records. Only your shared flags appear here.</div>
+            <div style="margin-top: 10px;">
+              <strong>Flags you have shared:</strong><br>
+              <div class="tag-list" style="margin-top: 6px;">
+                <span class="tag caution">Chronic pain–mood interaction</span>
+                <span class="tag caution">Avoidance behaviours</span>
+                <span class="tag active">Engaged in treatment</span>
+              </div>
+            </div>
+            <div style="margin-top: 12px; font-size: 12px; color: var(--ink-mid);">Session frequency: weekly. Duration in care: 4 months.</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Social & context <span class="who-updated">Dr. Singh · 14 days ago</span></div>
+        <div id="social-context">
+          <div class="card-value">
+            Lives with partner. Works desk job (IT). On partial sick leave. Drives. Non-smoker. <span id="alcohol-field" class="redacted" data-tooltip="Restricted to clinical roles">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          </div>
+        </div>
+        <div id="social-admin" style="display:none;">
+          <div class="card-value">Lives with partner. Works desk job (IT). On partial sick leave. Drives.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-grid single">
+      <div class="card">
+        <div class="card-label">Cross-discipline coordination notes <span class="who-updated">All providers · visible to clinical roles only</span></div>
+        <div id="coord-notes">
+          <div class="card-value">
+            <div class="flag-note caution">◐ &nbsp;<span><strong>Physio + Dietitian align:</strong> Anti-inflammatory diet may support rehabilitation. Recommend K. Laurent and J. Okoro coordinate exercise-nutrition timing.</span></div>
+            <div class="flag-note info">ℹ &nbsp;<span><strong>GP note:</strong> Avoid NSAIDs long-term (renal function borderline). Physio and dietitian aware.</span></div>
+          </div>
+        </div>
+        <div id="coord-admin" style="display:none;">
+          <div class="redacted-block soft"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="watermark-note">CAPSULE · Shared Summary · Access logged · Last generated 10 Mar 2026 09:41 · MRN 00447-C</div>
+  </div>
+
+  <!-- ── MEDICATIONS ── -->
+  <div class="view" id="view-medications">
+    <div class="section-header">
+      <div class="section-title">Medications</div>
+      <div class="section-subtitle">Active prescriptions — visible to all clinical roles</div>
+    </div>
+    <div class="viewing-as">
+      <span id="med-role-badge" class="role-badge gp">GP</span>
+      <span style="font-size:12px; color:var(--ink-mid);">Medication list is visible to all clinical roles. Prescribing column visible to GP only.</span>
+    </div>
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="flag-note warn">⚠ &nbsp;<strong>Allergy on file:</strong> Penicillin (anaphylaxis confirmed). No cephalosporins without specialist sign-off.</div>
+      <div class="flag-note caution">◐ &nbsp;<strong>Opioid flag active.</strong> Any new opioid/opioid-adjacent prescriptions must route through Dr. Singh.</div>
+    </div>
+    <table class="medications-table">
+      <thead>
+        <tr>
+          <th>Medication</th>
+          <th>Dose & Frequency</th>
+          <th>Indication</th>
+          <th>Prescriber</th>
+          <th id="med-renew-header">Renew by</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div class="med-name">Amlodipine</div></td>
+          <td><div class="med-dose">5 mg · once daily</div></td>
+          <td>Hypertension</td>
+          <td>Dr. Singh (GP)</td>
+          <td id="renew-1">Jun 2026</td>
+        </tr>
+        <tr>
+          <td><div class="med-name">Pantoprazole</div></td>
+          <td><div class="med-dose">40 mg · once daily</div></td>
+          <td>GORD</td>
+          <td>Dr. Singh (GP)</td>
+          <td id="renew-2">Mar 2026 ⚑</td>
+        </tr>
+        <tr>
+          <td><div class="med-name">Paracetamol</div></td>
+          <td><div class="med-dose">500 mg–1g · PRN (max 4g/day)</div></td>
+          <td>Pain (back)</td>
+          <td>Dr. Singh (GP)</td>
+          <td id="renew-3">Ongoing</td>
+        </tr>
+        <tr>
+          <td><div class="med-name">Vitamin D3</div></td>
+          <td><div class="med-dose">1000 IU · once daily</div></td>
+          <td>Deficiency</td>
+          <td>Dr. Singh (GP)</td>
+          <td id="renew-4">Jun 2026</td>
+        </tr>
+        <tr id="escitalopram-row">
+          <td><div class="med-name">Escitalopram</div><div style="font-size:11px; color:var(--ink-light); margin-top:2px;">Shared with clinical roles</div></td>
+          <td><div class="med-dose">10 mg · once daily</div></td>
+          <td>Anxiety / mood (per Dr. Mehta)</td>
+          <td>Dr. Singh (GP)</td>
+          <td id="renew-5">Apr 2026</td>
+        </tr>
+        <tr id="supplement-row">
+          <td><div class="med-name">Magnesium glycinate</div><div style="font-size:11px; color:var(--ink-light); margin-top:2px;">OTC — patient-reported</div></td>
+          <td><div class="med-dose">400 mg · nocte</div></td>
+          <td>Sleep / muscle tension</td>
+          <td>Self-directed</td>
+          <td id="renew-6">—</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top: 12px; font-size: 12px; color: var(--ink-light);">Last reconciled by Dr. Singh · 3 days ago. Discrepancies should be flagged via secure message.</div>
+    <div class="watermark-note">CAPSULE · Medication List · Access logged · MRN 00447-C</div>
+  </div>
+
+  <!-- ── CONDITIONS ── -->
+  <div class="view" id="view-conditions">
+    <div class="section-header">
+      <div class="section-title">Active Conditions</div>
+      <div class="section-subtitle">Shared clinical picture — summarised not transcribed</div>
+    </div>
+    <div class="summary-grid">
+      <div class="card">
+        <div class="card-label" style="color: var(--accent-gp);">PRIMARY CARE</div>
+        <div class="card-value">
+          <p><strong>Hypertension</strong> — well-controlled on Amlodipine. BP target met last review (128/82).</p>
+          <hr class="divider">
+          <p><strong>Chronic low back pain</strong> — L4/L5 disc bulge (MRI Jul 2024). Neuropathic component suspected. Under physio management.</p>
+          <hr class="divider">
+          <p><strong>Borderline renal function</strong> — eGFR 62. Monitor 6-monthly. NSAIDs contraindicated.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label" style="color: var(--accent-physio);">PHYSIOTHERAPY</div>
+        <div class="card-value">
+          <p><strong>Lumbar deconditioning</strong> — core stability deficits. Active rehab programme (Stage 2 of 4).</p>
+          <hr class="divider">
+          <p><strong>Postural dysfunction</strong> — anterior pelvic tilt. Contributing to back pain. Ergonomic review recommended (desk work).</p>
+          <hr class="divider">
+          <p><strong>Gait</strong> — antalgic gait pattern on pain days. Not requiring aids currently.</p>
+        </div>
+      </div>
+    </div>
+    <div class="summary-grid">
+      <div class="card">
+        <div class="card-label" style="color: var(--accent-dietitian);">DIETETICS</div>
+        <div class="card-value">
+          <p><strong>Overweight</strong> — BMI 31.4. Dietary pattern: high processed foods, irregular timing. Anti-inflammatory focus agreed.</p>
+          <hr class="divider">
+          <p><strong>Iron borderline low</strong> — Ferritin 18. Dietary iron sources being increased. Monitoring in 8 weeks.</p>
+          <hr class="divider">
+          <p><strong>No eating disorder</strong> — SCOFF negative. Eating behaviours consistent with lifestyle factors, not disordered eating.</p>
+        </div>
+      </div>
+      <div class="card" id="psych-conditions-card">
+        <div class="card-label" style="color: var(--accent-psych);">PSYCHOLOGY</div>
+        <div id="psych-conditions-clinical">
+          <div class="card-value">
+            <div class="flag-note info" style="margin-bottom: 10px;">ℹ &nbsp;Content summarised by treating psychologist. Session details are not shared.</div>
+            <p><strong>Generalised anxiety</strong> — active treatment. Exacerbated by pain and functional limitations.</p>
+            <hr class="divider">
+            <p><strong>Avoidance / fear-avoidance:</strong> limiting rehabilitation engagement. Physio team aware.</p>
+            <hr class="divider">
+            <p><strong>No current risk concerns</strong> — patient stable. Safety plan not active.</p>
+          </div>
+        </div>
+        <div id="psych-conditions-admin" style="display:none;">
+          <div class="redacted-block" style="height: 120px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="watermark-note">CAPSULE · Conditions · Access logged · MRN 00447-C</div>
+  </div>
+
+  <!-- ── VISIT TIMELINE ── -->
+  <div class="view" id="view-visits">
+    <div class="section-header">
+      <div class="section-title">Visit Timeline</div>
+      <div class="section-subtitle">Cross-discipline encounters — outcomes only, no session content</div>
+    </div>
+    <div class="flag-note info" style="margin-bottom: 20px;">ℹ &nbsp;Timeline shows encounter outcomes and shared flags. Session notes, therapeutic content, and private clinical observations are excluded.</div>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-date">07 Mar</div>
+        <div class="timeline-line-wrap"><div class="timeline-dot gp"></div><div class="timeline-line"></div></div>
+        <div class="timeline-content">
+          <div class="timeline-who"><span class="role-badge gp" style="font-size:10px;">GP</span> &nbsp;Dr. Singh · General Practice</div>
+          <div class="timeline-text">BP review — target met. Pantoprazole script renewal due. Referred to dietitian for anti-inflammatory dietary support. Escitalopram dose unchanged.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">05 Mar</div>
+        <div class="timeline-line-wrap"><div class="timeline-dot physio"></div><div class="timeline-line"></div></div>
+        <div class="timeline-content">
+          <div class="timeline-who"><span class="role-badge physio" style="font-size:10px;">Physio</span> &nbsp;J. Okoro · Physiotherapy</div>
+          <div class="timeline-text">Session 6 of 12. Pain score: 5/10 (↓ from 7). Completed Stage 2 exercises. Patient reports avoidance of evening walks — flagged to psychology team.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">26 Feb</div>
+        <div class="timeline-line-wrap"><div class="timeline-dot psych"></div><div class="timeline-line"></div></div>
+        <div class="timeline-content">
+          <div class="timeline-who"><span class="role-badge psych" style="font-size:10px;">Psych</span> &nbsp;Dr. Mehta · Psychology</div>
+          <div class="timeline-text" id="psych-timeline-text">
+            <div id="psych-tl-clinical">Session 8. Patient engaged. Updated shared flag: avoidance behaviours remain active — coordinating with physio re: graded exposure approach. No risk concerns.</div>
+            <div id="psych-tl-admin" style="display:none;"><span class="redacted">Psychology session — content restricted</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">20 Feb</div>
+        <div class="timeline-line-wrap"><div class="timeline-dot dietitian"></div><div class="timeline-line"></div></div>
+        <div class="timeline-content">
+          <div class="timeline-who"><span class="role-badge dietitian" style="font-size:10px;">Dietitian</span> &nbsp;K. Laurent · Dietetics</div>
+          <div class="timeline-text">Initial assessment. 3-day food diary reviewed. Anti-inflammatory eating plan provided. Ferritin follow-up in 8 weeks. Coordinating with physio on pre/post-exercise nutrition.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">14 Feb</div>
+        <div class="timeline-line-wrap"><div class="timeline-dot physio"></div><div class="timeline-line"></div></div>
+        <div class="timeline-content">
+          <div class="timeline-who"><span class="role-badge physio" style="font-size:10px;">Physio</span> &nbsp;J. Okoro · Physiotherapy</div>
+          <div class="timeline-text">Initial assessment. MRI reviewed. Stage 1 home programme commenced. Fear-avoidance behaviour noted — referral to psychology discussed.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">10 Jan</div>
+        <div class="timeline-line-wrap"><div class="timeline-dot psych"></div><div class="timeline-line"></div></div>
+        <div class="timeline-content">
+          <div class="timeline-who"><span class="role-badge psych" style="font-size:10px;">Psych</span> &nbsp;Dr. Mehta · Psychology</div>
+          <div class="timeline-text" id="psych-timeline-text2">
+            <div id="psych-tl2-clinical">Psychology intake completed. Shared summary flags initialised. Confirmed no current risk concerns for shared record.</div>
+            <div id="psych-tl2-admin" style="display:none;"><span class="redacted">Psychology session — content restricted</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="watermark-note">CAPSULE · Visit Timeline · Access logged · MRN 00447-C</div>
+  </div>
+
+  <!-- ── PERMISSIONS ── -->
+  <div class="view" id="view-permissions">
+    <div class="section-header">
+      <div class="section-title">Permission Model</div>
+      <div class="section-subtitle">Who sees what, and why</div>
+    </div>
+
+    <div class="arch-section">
+      <div class="arch-title">Three-Tier Visibility Structure</div>
+      <div class="arch-body">
+        <p>The permission model is built on three concentric tiers. Each tier is <strong>opt-in by default</strong> for sensitive categories, and <strong>clinically scoped</strong> — visibility follows need-to-know, not institutional convenience.</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 16px;">
+        <div class="card" style="border-left: 4px solid var(--flag-warn);">
+          <div class="card-label">TIER 1 — Universal Safety</div>
+          <div class="card-value" style="font-size: 12px;">Visible to ALL roles including admin. No override.<br><br>
+            · Drug allergies<br>· Critical safety flags<br>· Emergency contacts<br>· DNR / advance directive status
+          </div>
+        </div>
+        <div class="card" style="border-left: 4px solid var(--flag-info);">
+          <div class="card-label">TIER 2 — Clinical Shared</div>
+          <div class="card-value" style="font-size: 12px;">Visible to all treating clinicians. Not admin.<br><br>
+            · Active diagnoses<br>· Medications<br>· Functional status<br>· Coordination flags<br>· Visit outcomes
+          </div>
+        </div>
+        <div class="card" style="border-left: 4px solid var(--accent-psych);">
+          <div class="card-label">TIER 3 — Role-Scoped</div>
+          <div class="card-value" style="font-size: 12px;">Controlled by the originating clinician. Opt-in per field.<br><br>
+            · Psych session flags (psychologist controls)<br>· Substance use history<br>· Sensitive social context<br>· Therapeutic rationale
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-section">
+      <div class="arch-title">Visibility Matrix</div>
+      <div style="overflow-x: auto;">
+        <table class="data-model-table" style="margin-top: 8px;">
+          <thead>
+            <tr>
+              <th>Field / Category</th>
+              <th>GP</th>
+              <th>Physio</th>
+              <th>Dietitian</th>
+              <th>Psychologist</th>
+              <th>Admin</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Drug allergies</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Safety flags (opioid, etc.)</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Active diagnoses (shared)</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+            <tr><td>Medication list</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+            <tr><td>Visit outcomes (summary)</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+            <tr><td>Functional / rehab status</td><td>✓</td><td>✓</td><td>✓</td><td>Flagged only</td><td>—</td></tr>
+            <tr><td>Nutrition status</td><td>✓</td><td>✓</td><td>✓</td><td>Flagged only</td><td>—</td></tr>
+            <tr><td>Mental health flags (psychologist-set)</td><td>✓</td><td>✓ (clinical impact only)</td><td>Flagged only</td><td>✓ (full)</td><td>—</td></tr>
+            <tr><td>Substance use history</td><td>✓</td><td>If clinically relevant</td><td>If clinically relevant</td><td>✓</td><td>—</td></tr>
+            <tr><td>Social context</td><td>✓ (full)</td><td>Relevant factors</td><td>Relevant factors</td><td>✓</td><td>Name, contact only</td></tr>
+            <tr><td>Psychology session content</td><td>—</td><td>—</td><td>—</td><td>✓ (own notes)</td><td>—</td></tr>
+            <tr><td>Prescribing / renewal detail</td><td>✓</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr><td>Coordination notes (cross-team)</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+            <tr><td>Appointment scheduling data</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+            <tr><td>Billing / insurance</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top: 8px; font-size: 12px; color: var(--ink-light);">✓ Full access &nbsp;·&nbsp; Flagged only = outcome/flag without session content &nbsp;·&nbsp; — = not visible</div>
+    </div>
+
+    <div class="arch-section">
+      <div class="arch-title">Who Controls What</div>
+      <div class="arch-body">
+        <p><strong>The originating clinician controls their tier-3 fields.</strong> A psychologist decides which flags cross into the shared record. A GP controls whether substance use history is shared beyond clinical roles. Patients can review what is shared and flag concerns — but cannot unilaterally remove safety-critical information.</p>
+        <p>Patients are shown a plain-language version of their summary at each visit. They cannot see the permission matrix or who has accessed their record in real-time, but receive a quarterly access log on request.</p>
+      </div>
+    </div>
+
+    <div class="watermark-note">CAPSULE · Permission Model · Access logged · MRN 00447-C</div>
+  </div>
+
+  <!-- ── DATA MODEL ── -->
+  <div class="view" id="view-datamodel">
+    <div class="section-header">
+      <div class="section-title">Data Architecture</div>
+      <div class="section-subtitle">What is summarised, what is excluded, and why</div>
+    </div>
+
+    <div class="arch-section">
+      <div class="arch-title">Core Principle: Summarise, Don't Aggregate</div>
+      <div class="arch-body">
+        <p>The shared summary is <strong>not a merged record</strong> — it is a structured set of <em>clinician-authored summaries</em> that are explicitly published to the shared space. Each clinician writes directly to the shared view; nothing is automatically extracted from their private notes.</p>
+        <p>This is the key architectural decision. It prevents raw clinical notes (with their defensive hedging, speculation, and therapeutic reasoning) from contaminating the shared space — while ensuring what does appear is intentional and clinically actionable.</p>
+      </div>
+    </div>
+
+    <div class="arch-section">
+      <div class="arch-title">Included vs Excluded</div>
+      <table class="data-model-table" style="margin-top: 8px;">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Included</th>
+            <th>Excluded</th>
+            <th>Rationale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Safety</strong></td>
+            <td class="included">Allergies, drug interactions, risk flags, emergency info</td>
+            <td class="excluded">Context for how risk was assessed</td>
+            <td>Safety first; clinicians need the flag, not the reasoning chain</td>
+          </tr>
+          <tr>
+            <td><strong>Diagnoses</strong></td>
+            <td class="included">Active, confirmed diagnoses with brief clinical status</td>
+            <td class="excluded">Differential diagnoses, ruled-out conditions, speculative notes</td>
+            <td>Differentials create noise and false clinical signals across teams</td>
+          </tr>
+          <tr>
+            <td><strong>Medications</strong></td>
+            <td class="included">Name, dose, frequency, indication, prescriber</td>
+            <td class="excluded">Prescribing rationale, alternatives considered, patient refusals</td>
+            <td>Actionable data only; rationale lives in GP notes</td>
+          </tr>
+          <tr>
+            <td><strong>Psychology</strong></td>
+            <td class="included">Clinician-authored flags: affect on treatment, safety status, engagement</td>
+            <td class="excluded">Session content, therapeutic disclosures, formulation, history</td>
+            <td>Confidentiality is non-negotiable; flagging is a clinical decision</td>
+          </tr>
+          <tr>
+            <td><strong>Social History</strong></td>
+            <td class="included">Housing, work, support — relevant functional context</td>
+            <td class="excluded">Family conflict detail, past trauma, legal history</td>
+            <td>Functional context improves care; sensitive details do not add clinical value across all roles</td>
+          </tr>
+          <tr>
+            <td><strong>Visit Notes</strong></td>
+            <td class="included">Encounter outcome, clinical decisions, coordination actions</td>
+            <td class="excluded">Session verbatim, patient statements, clinical reasoning drafts</td>
+            <td>Outcomes are shared facts; reasoning is private professional judgment</td>
+          </tr>
+          <tr>
+            <td><strong>Lab / Imaging</strong></td>
+            <td class="included">Current values, trends, and ordering clinician's interpretation</td>
+            <td class="excluded">Raw reports, historical values beyond 12 months unless relevant</td>
+            <td>Interpreted results, not data dumps</td>
+          </tr>
+          <tr>
+            <td><strong>Patient Voice</strong></td>
+            <td class="included">Patient-stated goals, patient-reported outcomes (PROs), stated preferences</td>
+            <td class="excluded">Verbatim patient statements</td>
+            <td>Goals aid coordination; verbatim statements create confidentiality issues</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="arch-section">
+      <div class="arch-title">Update Governance</div>
+      <div class="arch-body">
+        <p><strong>Who can write:</strong> Each clinician writes only to their own section. Cross-discipline coordination fields require the initiating clinician to tag a specific colleague.</p>
+        <p><strong>Staleness:</strong> Fields older than 90 days are visually flagged as potentially stale. Clinicians are prompted to confirm or archive. Safety flags never expire automatically.</p>
+        <p><strong>Audit:</strong> Every field write and every view access is logged with timestamp and role. Not visible to other clinicians in real-time — available to the practice on request for governance review.</p>
+      </div>
+    </div>
+
+    <div class="watermark-note">CAPSULE · Data Architecture · Access logged · MRN 00447-C</div>
+  </div>
+
+  <!-- ── ANTI-CYA ── -->
+  <div class="view" id="view-cya">
+    <div class="section-header">
+      <div class="section-title">Anti-CYA Design</div>
+      <div class="section-subtitle">How Capsule prevents defensive, performative documentation</div>
+    </div>
+
+    <div class="arch-section">
+      <div class="arch-title">The Problem: Shared Records Create Defensive Writing</div>
+      <div class="arch-body">
+        <p>When clinicians know their notes will be read by colleagues — or might appear in litigation — they write for audiences other than the patient's care. The result is notes full of "patient was advised of risks," vague qualifications, and omitted concerns that make the writer look good but the care worse.</p>
+        <p>Capsule's architecture addresses this at the structural level, not through instruction.</p>
+      </div>
+    </div>
+
+    <ul class="principle-list" style="margin-bottom: 28px;">
+      <li class="principle-item">
+        <div class="principle-num">1</div>
+        <div class="principle-text"><strong>Private notes stay private.</strong> Clinicians document freely in their own records. Only curated, intentional fields enter the shared summary. This separation removes the audience problem — private notes are written for care, not defence.</div>
+      </li>
+      <li class="principle-item">
+        <div class="principle-num">2</div>
+        <div class="principle-text"><strong>Structured fields, not free text.</strong> The shared summary uses defined fields (diagnoses, flags, coordination notes) rather than open-ended note space. It's harder to pad a structured field. "Active: Yes/No + one-line status" resists CYA inflation.</div>
+      </li>
+      <li class="principle-item">
+        <div class="principle-num">3</div>
+        <div class="principle-text"><strong>The shared record is explicitly not the legal record.</strong> Capsule's terms and UI make clear the shared summary is a care coordination tool. The medicolegal record lives in each clinician's private notes. This removes the incentive to use the summary as a paper trail.</div>
+      </li>
+      <li class="principle-item">
+        <div class="principle-num">4</div>
+        <div class="principle-text"><strong>Write for the next clinician, not the next lawyer.</strong> The UI prompt when adding shared content is: "What does the next treating clinician need to know?" Not: "Document your clinical decision." This shapes what gets written.</div>
+      </li>
+      <li class="principle-item">
+        <div class="principle-num">5</div>
+        <div class="principle-text"><strong>Audit without surveillance.</strong> Access logs exist for governance, not peer surveillance. Clinicians are not shown who has read their shared entries in real-time. This reduces the pressure to write defensively for an imagined audience of colleagues.</div>
+      </li>
+      <li class="principle-item">
+        <div class="principle-num">6</div>
+        <div class="principle-text"><strong>Coordination notes are ephemeral.</strong> Cross-discipline coordination entries have a 30-day default expiry and are labelled as working communication, not permanent documentation. This makes them more honest and less formal.</div>
+      </li>
+    </ul>
+
+    <div class="cya-box">
+      <h4>CYA vs Capsule: A comparison</h4>
+      <div class="cya-comparison">
+        <div class="cya-col bad">
+          <div class="cya-col-title">⚠ Traditional Shared Record (CYA)</div>
+          <div class="cya-example">"Patient was counselled at length regarding risks of continued sedentary behaviour and the importance of adherence to the physiotherapy programme. Patient verbally acknowledged. Referral to dietitian completed and documented. Further review recommended."</div>
+        </div>
+        <div class="cya-col good">
+          <div class="cya-col-title">✓ Capsule shared summary</div>
+          <div class="cya-example">"Stage 2 physio underway. Avoidance behaviours limiting evening exercise — physio and psych coordinating graded exposure. Dietitian to align exercise-nutrition timing. Next milestone: Stage 3 readiness by Apr."</div>
+        </div>
+      </div>
+      <div style="margin-top: 12px; font-size: 12px; color: var(--ink-mid);">The Capsule version tells the next clinician what is happening and what to do. The CYA version tells a judge that the clinician did their job.</div>
+    </div>
+
+    <div class="watermark-note">CAPSULE · Anti-CYA Design · Access logged · MRN 00447-C</div>
+  </div>
+
+</main>
+
+<!-- RIGHT SIDEBAR -->
+<aside class="sidebar-right">
+  <div class="right-section">
+    <div class="right-section-label">Care Team</div>
+    <div class="provider-pill">
+      <div class="provider-avatar" style="background: var(--accent-gp);">DS</div>
+      <div class="provider-info">
+        <div class="provider-name">Dr. Priya Singh</div>
+        <div class="provider-role">General Practitioner · Lead</div>
+      </div>
+      <div class="provider-last">3d ago</div>
+    </div>
+    <div class="provider-pill">
+      <div class="provider-avatar" style="background: var(--accent-physio);">JO</div>
+      <div class="provider-info">
+        <div class="provider-name">James Okoro</div>
+        <div class="provider-role">Physiotherapist</div>
+      </div>
+      <div class="provider-last">5d ago</div>
+    </div>
+    <div class="provider-pill">
+      <div class="provider-avatar" style="background: var(--accent-dietitian);">KL</div>
+      <div class="provider-info">
+        <div class="provider-name">Kamille Laurent</div>
+        <div class="provider-role">Dietitian</div>
+      </div>
+      <div class="provider-last">8d ago</div>
+    </div>
+    <div class="provider-pill">
+      <div class="provider-avatar" style="background: var(--accent-psych);">RM</div>
+      <div class="provider-info">
+        <div class="provider-name">Dr. Rupa Mehta</div>
+        <div class="provider-role">Psychologist</div>
+      </div>
+      <div class="provider-last">12d ago</div>
+    </div>
+  </div>
+
+  <div class="right-section">
+    <div class="right-section-label">Your Role Access</div>
+    <div id="right-perm-matrix" class="permission-matrix">
+      <!-- dynamically updated -->
+    </div>
+  </div>
+
+  <div class="right-section">
+    <div class="right-section-label">Summary Health</div>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--rule);">
+        <span style="color: var(--ink-mid);">Completeness</span>
+        <span style="font-weight: 500; color: var(--accent-gp);">86%</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--rule);">
+        <span style="color: var(--ink-mid);">Stale fields</span>
+        <span style="font-weight: 500; color: var(--flag-caution);">1</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--rule);">
+        <span style="color: var(--ink-mid);">Open coord. flags</span>
+        <span style="font-weight: 500; color: var(--flag-info);">2</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0;">
+        <span style="color: var(--ink-mid);">Last full review</span>
+        <span style="font-weight: 500;">7 Mar 2026</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-section">
+    <div class="right-section-label">Patient Goals (self-reported)</div>
+    <div style="font-size: 12px; color: var(--ink-mid); line-height: 1.7;">
+      "Return to cycling by end of year."<br>
+      "Lose 8 kg in 6 months."<br>
+      "Reduce pain meds."
+    </div>
+    <div style="font-size: 11px; color: var(--ink-light); margin-top: 6px;">Last updated by patient · 15 Feb 2026</div>
+  </div>
+</aside>
+
+</div><!-- /main-layout -->
+</div><!-- /shell -->
+
+<script>
+const roleConfig = {
+  gp: {
+    label: 'General Practitioner',
+    badgeClass: 'gp',
+    badgeText: 'GP',
+    contextText: 'You see all shared fields. Psychological session content is summarised only.',
+    showSensitivityGP: true,
+    showSensitivityAdmin: false,
+    showPsychBadge: false,
+    mhView: 'gp',
+    psychConditions: 'clinical',
+    psychTimeline: 'clinical',
+    showAlcohol: true,
+    showSocial: 'full',
+    showCoord: 'full',
+    showMedAdmin: 'clinical',
+    permissions: [
+      ['Drug allergies', '✓', 'perm-yes'],
+      ['Safety flags', '✓', 'perm-yes'],
+      ['Diagnoses', '✓', 'perm-yes'],
+      ['Medications', '✓', 'perm-yes'],
+      ['Psych flags', '✓', 'perm-yes'],
+      ['Substance history', '✓', 'perm-yes'],
+      ['Visit outcomes', '✓', 'perm-yes'],
+      ['Prescribing detail', '✓', 'perm-yes'],
+      ['Session content', '✗', 'perm-no'],
+      ['Admin / billing', '✗', 'perm-no'],
+    ]
+  },
+  physio: {
+    label: 'Physiotherapist',
+    badgeClass: 'physio',
+    badgeText: 'Physio',
+    contextText: 'You see clinical coordination fields. Substance history shown if clinically relevant. Psych content is flag-only.',
+    showSensitivityGP: false,
+    showSensitivityAdmin: false,
+    showPsychBadge: false,
+    mhView: 'gp',
+    psychConditions: 'clinical',
+    psychTimeline: 'clinical',
+    showAlcohol: false,
+    showSocial: 'partial',
+    showCoord: 'full',
+    showMedAdmin: 'clinical',
+    permissions: [
+      ['Drug allergies', '✓', 'perm-yes'],
+      ['Safety flags', '✓', 'perm-yes'],
+      ['Diagnoses', '✓', 'perm-yes'],
+      ['Medications', '✓', 'perm-yes'],
+      ['Psych flags', '◑', 'perm-partial'],
+      ['Substance history', '◑', 'perm-partial'],
+      ['Visit outcomes', '✓', 'perm-yes'],
+      ['Prescribing detail', '✗', 'perm-no'],
+      ['Session content', '✗', 'perm-no'],
+      ['Admin / billing', '✗', 'perm-no'],
+    ]
+  },
+  dietitian: {
+    label: 'Dietitian',
+    badgeClass: 'dietitian',
+    badgeText: 'Dietitian',
+    contextText: 'You see nutrition-relevant clinical fields. Sensitive history and psych content are restricted.',
+    showSensitivityGP: false,
+    showSensitivityAdmin: false,
+    showPsychBadge: false,
+    mhView: 'gp',
+    psychConditions: 'clinical',
+    psychTimeline: 'clinical',
+    showAlcohol: false,
+    showSocial: 'partial',
+    showCoord: 'full',
+    showMedAdmin: 'clinical',
+    permissions: [
+      ['Drug allergies', '✓', 'perm-yes'],
+      ['Safety flags', '✓', 'perm-yes'],
+      ['Diagnoses', '✓', 'perm-yes'],
+      ['Medications', '✓', 'perm-yes'],
+      ['Psych flags', '◑', 'perm-partial'],
+      ['Substance history', '✗', 'perm-no'],
+      ['Visit outcomes', '✓', 'perm-yes'],
+      ['Prescribing detail', '✗', 'perm-no'],
+      ['Session content', '✗', 'perm-no'],
+      ['Admin / billing', '✗', 'perm-no'],
+    ]
+  },
+  psych: {
+    label: 'Psychologist',
+    badgeClass: 'psych',
+    badgeText: 'Psych',
+    contextText: 'You see all clinical fields. Your session content is private — only your shared flags appear here.',
+    showSensitivityGP: true,
+    showSensitivityAdmin: false,
+    showPsychBadge: true,
+    mhView: 'psych',
+    psychConditions: 'clinical',
+    psychTimeline: 'clinical',
+    showAlcohol: true,
+    showSocial: 'full',
+    showCoord: 'full',
+    showMedAdmin: 'clinical',
+    permissions: [
+      ['Drug allergies', '✓', 'perm-yes'],
+      ['Safety flags', '✓', 'perm-yes'],
+      ['Diagnoses', '✓', 'perm-yes'],
+      ['Medications', '✓', 'perm-yes'],
+      ['Psych shared flags', '✓', 'perm-yes'],
+      ['Substance history', '✓', 'perm-yes'],
+      ['Visit outcomes', '✓', 'perm-yes'],
+      ['Prescribing detail', '✗', 'perm-no'],
+      ['Own session notes', '✓ (private)', 'perm-yes'],
+      ['Admin / billing', '✗', 'perm-no'],
+    ]
+  },
+  admin: {
+    label: 'Admin Staff',
+    badgeClass: 'admin',
+    badgeText: 'Admin',
+    contextText: 'You see scheduling and administrative fields only. Clinical information is restricted.',
+    showSensitivityGP: false,
+    showSensitivityAdmin: true,
+    showPsychBadge: false,
+    mhView: 'admin',
+    psychConditions: 'admin',
+    psychTimeline: 'admin',
+    showAlcohol: false,
+    showSocial: 'admin',
+    showCoord: 'admin',
+    showMedAdmin: 'admin',
+    permissions: [
+      ['Drug allergies', '✓', 'perm-yes'],
+      ['Safety flags', '✓', 'perm-yes'],
+      ['Diagnoses', '✗', 'perm-no'],
+      ['Medications', '✗', 'perm-no'],
+      ['Psych flags', '✗', 'perm-no'],
+      ['Substance history', '✗', 'perm-no'],
+      ['Visit outcomes', '✗', 'perm-no'],
+      ['Scheduling data', '✓', 'perm-yes'],
+      ['Session content', '✗', 'perm-no'],
+      ['Billing / insurance', '✓', 'perm-yes'],
+    ]
+  }
+};
+
+function switchRole(role) {
+  const cfg = roleConfig[role];
+
+  // Update labels
+  document.getElementById('viewing-role-label').textContent = 'Viewing as: ' + cfg.label;
+  document.getElementById('role-context-text').textContent = cfg.contextText;
+
+  // Update role badges
+  ['role-badge-display', 'med-role-badge'].forEach(id => {
+    const el = document.getElementById(id);
+    el.className = 'role-badge ' + cfg.badgeClass;
+    el.textContent = cfg.badgeText;
+  });
+
+  // Sensitivity bars
+  document.getElementById('sensitivity-bar-gp').style.display = cfg.showSensitivityGP ? 'flex' : 'none';
+  document.getElementById('sensitivity-bar-admin').style.display = cfg.showSensitivityAdmin ? 'flex' : 'none';
+
+  // Psych nav badge
+  document.getElementById('psych-badge-nav').style.display = cfg.showPsychBadge ? 'flex' : 'none';
+
+  // Mental health card
+  document.getElementById('mh-gp-view').style.display = (cfg.mhView === 'gp') ? 'block' : 'none';
+  document.getElementById('mh-psych-view').style.display = (cfg.mhView === 'psych') ? 'block' : 'none';
+  document.getElementById('mh-admin-view').style.display = (cfg.mhView === 'admin') ? 'block' : 'none';
+
+  // Psych conditions
+  document.getElementById('psych-conditions-clinical').style.display = (cfg.psychConditions === 'clinical') ? 'block' : 'none';
+  document.getElementById('psych-conditions-admin').style.display = (cfg.psychConditions === 'admin') ? 'block' : 'none';
+
+  // Psych timeline
+  ['psych-tl-clinical','psych-tl2-clinical'].forEach(id => {
+    document.getElementById(id).style.display = (cfg.psychTimeline === 'clinical') ? 'block' : 'none';
+  });
+  ['psych-tl-admin','psych-tl2-admin'].forEach(id => {
+    document.getElementById(id).style.display = (cfg.psychTimeline === 'admin') ? 'block' : 'none';
+  });
+
+  // Social context
+  document.getElementById('social-context').style.display = (cfg.showSocial !== 'admin') ? 'block' : 'none';
+  document.getElementById('social-admin').style.display = (cfg.showSocial === 'admin') ? 'block' : 'none';
+
+  // Alcohol field (within social-context)
+  const alcoholField = document.getElementById('alcohol-field');
+  if (cfg.showAlcohol) {
+    alcoholField.style.cssText = '';
+    alcoholField.textContent = 'Alcohol: 6–8 std drinks/week.';
+    alcoholField.className = '';
+  } else {
+    alcoholField.className = 'redacted';
+    alcoholField.textContent = '                        ';
+    alcoholField.setAttribute('data-tooltip', 'Restricted to clinical roles');
+  }
+
+  // Coordination notes
+  document.getElementById('coord-notes').style.display = (cfg.showCoord !== 'admin') ? 'block' : 'none';
+  document.getElementById('coord-admin').style.display = (cfg.showCoord === 'admin') ? 'block' : 'none';
+
+  // Medication admin columns
+  const adminCols = ['med-renew-header','renew-1','renew-2','renew-3','renew-4','renew-5','renew-6'];
+  adminCols.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (role === 'gp') ? '' : 'none';
+  });
+
+  // Escitalopram row visibility
+  document.getElementById('escitalopram-row').style.display = (cfg.showMedAdmin === 'admin') ? 'none' : '';
+
+  // Update right panel permission matrix
+  const matrix = document.getElementById('right-perm-matrix');
+  matrix.innerHTML = cfg.permissions.map(([field, val, cls]) =>
+    `<div class="perm-row">
+      <div class="perm-field">${field}</div>
+      <div class="perm-check ${cls}">${val}</div>
+    </div>`
+  ).join('');
+}
+
+function showView(name, navEl) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  navEl.classList.add('active');
+}
+
+function enterPrototype() {
+    const overlay = document.getElementById('introOverlay');
+    overlay.classList.add('hidden');
+    setTimeout(() => overlay.style.display = 'none', 400);
+  }
+
+  // Init
+switchRole('gp');
+</script>
+</body>
+</html>
